@@ -134,7 +134,7 @@ def main():
     source_path=a.items/"items.safetensors"
     selection=json.loads(sel_path.read_text())
     info=json.loads((a.items/"meta.json").read_text())
-    if (selection.get("schema")!="l26_nnomp_smoke_v1"
+    if (selection.get("schema")!=f"l{info['layer']}_nnomp_smoke_v1"
         or selection.get("source")!="true_GT_residual"
         or selection.get("items_sha256")!=info["items_sha256"]
         or selection.get("layer")!=info["layer"]
@@ -156,7 +156,7 @@ def main():
                         filter_policy=a.filter_policy)
     counts=Counter(item["reason"] for item in audit)
     upstream_counts=Counter(item["upstream_reason"] for item in audit)
-    meta={"schema":"l26_distill_bullets_v1","model":info["model"],
+    meta={"schema":f"l{info['layer']}_distill_bullets_v1","model":info["model"],
           "layer":selection["layer"],"split":selection["split"],
           "teacher":str(teacher),"source":"true_GT_residual",
           "prompt_mode":"concepts_raw","min_picks":a.min_picks,

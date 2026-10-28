@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Bulk L26 distillation teacher generation via vLLM prompt embeddings.
+"""Bulk single-layer distillation teacher generation via vLLM prompt embeddings.
 
 Run in /root/olens-vllm-venv, NOT the HF/PEFT training environment.
 Outputs are byte-schema compatible with oracle/select_distill_nnomp.py.
-Source activations are TRUE L26 residuals; prompt, slot and alpha come from
+Source activations are TRUE single-layer residuals; prompt, slot and alpha come from
 the exact completed SFT checkpoint used for the merged teacher.
 """
 import argparse
@@ -55,9 +55,9 @@ def contract(teacher,items,merged,split,start,count,n_shards,shard,
     tm=json.loads((teacher/"meta.json").read_text())
     im=json.loads((items/"meta.json").read_text())
     mm=json.loads((merged/"olens_merge_manifest.json").read_text())
-    if tm.get("stage")!="l26_ao_sft_fresh_pool_v1" or im.get("schema")!="gt_distill_items_v1":
+    if tm.get("stage")!=f"l{tm.get('layer')}_ao_sft_fresh_pool_v1" or im.get("schema")!="gt_distill_items_v1":
         raise ValueError("Wrong source lineage")
-    if (mm.get("schema")!="l26_vllm_merged_teacher_v1"
+    if (mm.get("schema")!=f"l{tm.get('layer')}_vllm_merged_teacher_v1"
         or Path(mm["source_checkpoint"]).resolve()!=teacher.resolve()
         or mm["source_adapter_sha256"]!=sha256(teacher/"lora"/"adapter_model.safetensors")
         or mm["model"]!=tm["model"] or im["model"]!=tm["model"]

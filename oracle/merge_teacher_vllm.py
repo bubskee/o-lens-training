@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Merge a completed L26 SFT teacher LoRA for vLLM offline prompt-embed sampling.
+"""Merge a completed single-layer SFT teacher LoRA for vLLM offline prompt-embed sampling.
 
 Run in the EXISTING training venv, not the separately installed vLLM venv.
 Merged ~9 GB model is intentionally on ephemeral local disk, never FUSE.
@@ -24,12 +24,14 @@ def config_contract(teacher_dir):
     if not (teacher_dir / "COMPLETE").is_file():
         raise ValueError("Teacher checkpoint is incomplete")
     meta = json.loads((teacher_dir / "meta.json").read_text())
-    required = {"stage": "l26_ao_sft_fresh_pool_v1",
-                "model": "Qwen/Qwen3.5-4B", "layer": 26,
+    if meta.get("layer") not in (26, 30):
+        raise ValueError("Supported teacher layers: 26, 30")
+    required = {"stage": f"l{meta['layer']}_ao_sft_fresh_pool_v1",
+                "model": "Qwen/Qwen3.5-4B", "layer": meta["layer"],
                 "transform": "unit", "prompt_slot": "last token of rendered prompt",
                 "source": "frozen_AR_of_fresh_nonoverlap_AO_crops"}
     if any(meta.get(k) != v for k, v in required.items()):
-        raise ValueError("Teacher does not match frozen L26 SFT injection contract")
+        raise ValueError("Teacher does not match frozen SFT injection contract")
     if float(meta.get("alpha", 0)) <= 0 or not meta.get("prompt"):
         raise ValueError("Missing injection alpha or prompt")
     return meta
@@ -107,7 +109,7 @@ def main():
     tok.save_pretrained(staging)
     config = AutoConfig.from_pretrained(staging)
     files, embkey = weight_files_and_embed_key(staging)
-    manifest = {"schema":"l26_vllm_merged_teacher_v1",
+    manifest = {"schema":f"l{meta['layer']}_vllm_merged_teacher_v1",
                 "source_checkpoint":str(args.teacher),
                 "source_adapter_sha256":sha256(adapter_path),
                 "model":meta["model"],"revision":meta.get("revision"),

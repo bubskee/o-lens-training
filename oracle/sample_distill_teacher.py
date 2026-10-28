@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Sample multiple teacher continuations conditioned on true L26 residuals.
+"""Sample multiple teacher continuations conditioned on true single-layer residuals.
 
 Follows Agam's distillation teacher sampling shape: GT activations, 64 draws,
 temperature=1, top_p=.95, max_new_tokens=100. Deliberately uses THIS teacher's
@@ -48,7 +48,7 @@ def load_contract(teacher_path, items_path, split, start, count, n_samples, max_
         raise ValueError("Teacher or true-activation items incomplete")
     teacher = json.loads((teacher_path/"meta.json").read_text())
     items = json.loads((items_path/"meta.json").read_text())
-    if teacher.get("stage") != "l26_ao_sft_fresh_pool_v1":
+    if teacher.get("stage") != f"l{teacher.get('layer')}_ao_sft_fresh_pool_v1":
         raise ValueError("Wrong teacher checkpoint lineage")
     if items["teacher"] != str(teacher_path) or items["model"] != teacher["model"] or items["layer"] != teacher["layer"]:
         raise ValueError("Teacher/GT source mismatch")

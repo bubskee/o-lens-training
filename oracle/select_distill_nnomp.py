@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Choose up to four nonnegative complementary L26 candidate directions.
+"""Choose up to four nonnegative complementary single-layer candidate directions.
 
 Agam-style within-item NNOMP: prefix candidates -> frozen AR ->
 center/whiten with frozen AR whitener -> unit atoms -> greedy positive
@@ -198,7 +198,7 @@ def main():
     # manifest so a 32-item pilot can resume into the full 512-item job.
     white_path=a.ar_checkpoint/f"whitener_l{smeta['layer']}.safetensors"
     run_manifest={
-        "schema":"l26_nnomp_resumable_v1",
+        "schema":f"l{smeta['layer']}_nnomp_resumable_v1",
         "sample_manifest_sha256":sha256(a.samples/"manifest.json"),
         "items_sha256":imeta["items_sha256"],
         "ar_checkpoint":str(a.ar_checkpoint.resolve()),
@@ -209,7 +209,10 @@ def main():
         "start":lo,"count":hi-lo,"k":4,"min_gain":a.min_gain,
         "batch_size":a.batch_size,"prefixes":list(PREFIXES),
         "source":"true_GT_residual"}
-    report={"schema":"l26_nnomp_smoke_v1",
+    if smeta["layer"] == 30:
+        run_manifest["ar_weight_sha256"] = {name:sha256(a.ar_checkpoint/name) for name in
+            ("lora/adapter_config.json", "lora/adapter_model.safetensors", "training_state.pt")}
+    report={"schema":f"l{smeta['layer']}_nnomp_smoke_v1",
             "sample_manifest_sha256":run_manifest["sample_manifest_sha256"],
             "items_sha256":imeta["items_sha256"],
             "ar_checkpoint":str(a.ar_checkpoint),

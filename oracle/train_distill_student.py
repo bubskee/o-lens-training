@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Single-GPU, warm-started L26 multi-concept distillation SFT (not RL).
+"""Single-GPU, warm-started single-layer multi-concept distillation SFT (not RL).
 
-Use frozen NNOMP/assembly bullet targets and TRUE L26 residual vectors.
+Use frozen NNOMP/assembly bullet targets and TRUE single-layer residual vectors.
 Student prompt uses Agam's concepts_raw wording and a verified single-token
 injection slot. The parent AO-SFT used a different prompt with the slot at
 its final token; that *intentional* student-stage change is recorded.
@@ -63,11 +63,11 @@ def load_targets(path, expected_split):
     if not (path / "COMPLETE").is_file():
         raise ValueError(f"Incomplete distillation assembly: {path}")
     meta = json.loads((path / "meta.json").read_text())
-    if (meta.get("schema") != "l26_distill_bullets_v1"
+    if (meta.get("schema") != f"l{meta.get('layer')}_distill_bullets_v1"
         or meta.get("source") != "true_GT_residual"
         or meta.get("prompt_mode") != "concepts_raw"
         or meta.get("split") != expected_split
-        or meta.get("layer") != 26
+        or meta.get("layer") not in (26, 30)
         or meta.get("filter_policy") not in ("upstream", "no_unigram")):
         raise ValueError(f"Incorrect assembly source contract: {path}")
     data_file = path / "targets.safetensors"
@@ -136,8 +136,8 @@ def verified_contract(train_path, val_path, parent_path):
     adapter = parent_path / "lora" / "adapter_model.safetensors"
     if not adapter.is_file():
         raise ValueError("Parent LoRA adapter missing")
-    if (parent_meta.get("stage") != "l26_ao_sft_fresh_pool_v1"
-        or parent_meta.get("layer") != 26
+    if (parent_meta.get("stage") != f"l{parent_meta.get('layer')}_ao_sft_fresh_pool_v1"
+        or parent_meta.get("layer") not in (26, 30)
         or parent_meta.get("source") != "frozen_AR_of_fresh_nonoverlap_AO_crops"
         or parent_meta.get("transform") != "unit"
         or float(parent_meta.get("alpha", -1)) != 8000
@@ -206,11 +206,11 @@ def main():
         ends = data["target_ids"][data["offsets"][1:].long() - 1]
         if not bool((ends == tokenizer.eos_token_id).all()):
             p.error("Target EOS mismatch")
-    prompt, slot, char = render_concepts_prompt(tokenizer, 26)
+    prompt, slot, char = render_concepts_prompt(tokenizer, parent["layer"])
     info = {
-        "stage": STAGE, "model": parent["model"], "revision": parent.get("revision"),
-        "layer": 26, "transform": "unit", "alpha": parent["alpha"],
-        "prompt_mode": "concepts_raw", "prompt": PROMPT_TEMPLATE.format(layer=26,char=char),
+        "stage": f"l{parent['layer']}_distill_student_sft_v1", "model": parent["model"], "revision": parent.get("revision"),
+        "layer": parent["layer"], "transform": "unit", "alpha": parent["alpha"],
+        "prompt_mode": "concepts_raw", "prompt": PROMPT_TEMPLATE.format(layer=parent["layer"],char=char),
         "prompt_slot": slot, "prompt_char": char,
         "rendered_prompt_ids_sha256": hashlib.sha256(prompt.numpy().tobytes()).hexdigest(),
         "init_from": str(a.init_from.resolve()), "init_adapter_sha256": adapter_sha,

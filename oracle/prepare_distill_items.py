@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prepare true L26 residuals for Agam-style distillation teacher sampling.
+"""Prepare true single-layer residuals for Agam-style distillation teacher sampling.
 
 This is a new GT-activation source, not the AO-SFT AR-output pool. Draw one
 nontrivial span per rollout from the AR-held-out partition; hash-split rollouts
@@ -101,6 +101,7 @@ def main():
     p.add_argument("--base-items", type=Path, help="Append to this bank; retain its validation tensors exactly")
     p.add_argument("--fresh-data", type=Path, help="Dedicated prompt-disjoint harvest; all new rollouts eligible")
     p.add_argument("--reserve-test", type=int, default=256)
+    p.add_argument("--source-config", type=Path, help="Require exact historical corpus inventory/counts")
     p.add_argument("--dry-run", action="store_true", help="Select and audit capacity without writing")
     args = p.parse_args()
     if args.fresh_data and not args.base_items:
@@ -110,7 +111,7 @@ def main():
     if not (args.teacher / "COMPLETE").is_file():
         p.error("Teacher checkpoint is incomplete")
     teacher = json.loads((args.teacher / "meta.json").read_text())
-    if (teacher.get("stage") != "l26_ao_sft_fresh_pool_v1" or
+    if (teacher.get("stage") != f"l{args.layer}_ao_sft_fresh_pool_v1" or
         teacher.get("layer") != args.layer or teacher.get("model") != args.model or
         teacher.get("prompt") != PROMPT or teacher.get("transform") != "unit" or
         teacher.get("source") != "frozen_AR_of_fresh_nonoverlap_AO_crops"):
@@ -118,7 +119,19 @@ def main():
     ns = argparse.Namespace(layer=args.layer, pair_dir=args.data/"pairs",
          rollout_dir=args.data/"rollouts", pair_glob=None,
          rollout_glob="rollouts_*.jsonl", split_seed=42, val_frac=.10)
+    expected = None
+    if args.source_config:
+        expected = json.loads(args.source_config.read_text())
+        if expected["target_layer"] != args.layer or expected["model_id"] != args.model:
+            p.error("Source configuration model/layer mismatch")
+        for directory, pattern, key in (("pairs", f"pairs_l{args.layer}_*.safetensors", "pair_shards"),
+                                         ("rollouts", "rollouts_*.jsonl", "rollout_shards")):
+            if sorted(x.name for x in (args.data/directory).glob(pattern)) != sorted(expected[key]):
+                p.error("Corpus listing differs from AR inventory; stage a verified local copy")
     corpus = load_corpus(ns)
+    if expected and (len(corpus.train_indices) != expected["train_pairs"] or
+                     len(corpus.val_indices) != expected["val_pairs"]):
+        p.error("Corpus split counts differ from historical AR source")
     if corpus.d_model != 2560:
         raise RuntimeError(f"Unexpected activation width: {corpus.d_model}")
     tokenizer = AutoTokenizer.from_pretrained(args.teacher/"tokenizer")
